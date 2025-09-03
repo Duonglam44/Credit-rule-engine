@@ -1,11 +1,9 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@radix-ui/react-select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Fact } from '@/schemas/fact'
 import React from 'react'
 
 type TestEngineListProps = {
-  fact: {
-    name: string
-    options?: string[]
-  }
+  fact: Fact
   factInputs: Record<string, unknown>
   updateFactInput: (name: string, value: unknown) => void
   

@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2 } from "lucide-react"
-import { FactForm } from "@/app/facts/components/FactForm"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Plus, Edit2, Trash2, AlertCircle } from "lucide-react"
+import { FactForm } from "./components/FactForm"
+import { LoadingSpinner, TableSkeleton } from "@/components/ui/loading-spinner"
 import { Fact } from "@/schemas/fact"
 
 export default function FactsPage() {
@@ -17,12 +17,10 @@ export default function FactsPage() {
   const [error, setError] = useState<string | null>(null)
   const [editingFact, setEditingFact] = useState<Fact | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchFacts()
-  }, [])
 
-  const fetchFacts = async () => {
+  const fetchFacts = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/facts')
@@ -36,7 +34,12 @@ export default function FactsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchFacts()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleFactSaved = () => {
     setShowForm(false)
@@ -44,12 +47,13 @@ export default function FactsPage() {
     fetchFacts()
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Are you sure you want to delete this fact?')) {
       return
     }
 
     try {
+      setDeleteLoading(id)
       const response = await fetch(`/api/facts/${id}`, {
         method: 'DELETE',
       })
@@ -61,57 +65,76 @@ export default function FactsPage() {
       fetchFacts()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete fact')
+    } finally {
+      setDeleteLoading(null)
     }
-  }
+  }, [])
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = useCallback((type: string) => {
     switch (type) {
-      case 'number': return 'bg-blue-100 text-blue-800'
-      case 'string': return 'bg-green-100 text-green-800'
-      case 'boolean': return 'bg-yellow-100 text-yellow-800'
-      case 'list': return 'bg-purple-100 text-purple-800'
-      case 'function': return 'bg-orange-100 text-orange-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'number': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+      case 'string': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+      case 'boolean': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+      case 'list': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
     }
-  }
+  }, [])
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+  if (showForm) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              {editingFact ? 'Edit Fact' : 'Create Fact'}
+            </h1>
+            <p className="text-muted-foreground">
+              {editingFact ? 'Update the fact details below.' : 'Define a new data type for your rules.'}
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setShowForm(false)
+              setEditingFact(null)
+            }}
+          >
+            Back to Facts
+          </Button>
+        </div>
+
+        <div className="flex justify-center">
+          <FactForm
+            fact={editingFact}
+            onSaved={handleFactSaved}
+            onCancel={() => {
+              setShowForm(false)
+              setEditingFact(null)
+            }}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Facts Management</h1>
-          <p className="text-muted-foreground">
-            Manage data types and validation rules for credit assessment
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Facts</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Manage data types and validation rules for your credit assessment engine.
           </p>
         </div>
-        <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingFact(null)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Fact
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingFact ? 'Edit Fact' : 'Create New Fact'}
-              </DialogTitle>
-            </DialogHeader>
-            <FactForm
-              fact={editingFact}
-              onSaved={handleFactSaved}
-              onCancel={() => setShowForm(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setShowForm(true)} className="w-full sm:w-auto">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Fact
+        </Button>
       </div>
 
       {error && (
         <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -120,73 +143,105 @@ export default function FactsPage() {
         <CardHeader>
           <CardTitle>Available Facts</CardTitle>
           <CardDescription>
-            Facts are the data elements used in rule evaluation
+            Facts define the data types used in your business rules. Each fact has a name, type, and optional validation.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {facts.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No facts found. Create your first fact to get started.</p>
+          {loading ? (
+            <TableSkeleton rows={5} />
+          ) : facts.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto max-w-sm">
+                <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">
+                  <AlertCircle className="h-12 w-12" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No facts found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Get started by creating your first fact to define data types for your rules.
+                </p>
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Fact
+                </Button>
+              </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Options</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {facts.map((fact) => (
-                  <TableRow key={fact.id}>
-                    <TableCell className="font-medium">{fact.name}</TableCell>
-                    <TableCell>
-                      <Badge className={getTypeColor(fact.type)}>
-                        {fact.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{fact.description}</TableCell>
-                    <TableCell>
-                      {fact.type === 'list' && fact.options ? (
-                        <div className="flex flex-wrap gap-1">
-                          {fact.options.map((option) => (
-                            <Badge key={option} variant="outline" className="text-xs">
-                              {option}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingFact(fact)
-                            setShowForm(true)
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => fact.id && handleDelete(fact.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden sm:table-cell">Description</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Options</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {facts.map((fact) => (
+                    <TableRow key={fact.id}>
+                      <TableCell className="font-medium">{fact.name}</TableCell>
+                      <TableCell className="hidden sm:table-cell max-w-xs truncate">
+                        {fact.description}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="default" className={getTypeColor(fact.type)}>
+                          {fact.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {fact.options && fact.options.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {fact.options.slice(0, 2).map((option) => (
+                              <Badge key={option} variant="secondary" className="text-xs">
+                                {option}
+                              </Badge>
+                            ))}
+                            {fact.options.length > 2 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{fact.options.length - 2} more
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingFact(fact)
+                              setShowForm(true)
+                            }}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(fact.id!)}
+                            disabled={deleteLoading === fact.id}
+                            className="h-8 w-8 p-0 hover:bg-destructive hover:text-white"
+                          >
+                            {deleteLoading === fact.id ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -5,7 +5,6 @@ export enum FactType {
   STRING = 'string',
   BOOLEAN = 'boolean',
   LIST = 'list',
-  FUNCTION = 'function',
 }
 
 export enum Operator {
@@ -25,7 +24,7 @@ export const factSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, 'Fact name is required'),
   description: z.string().optional(),
-  type: z.enum([FactType.NUMBER, FactType.STRING, FactType.BOOLEAN, FactType.LIST, FactType.FUNCTION], {
+  type: z.enum([FactType.NUMBER, FactType.STRING, FactType.BOOLEAN, FactType.LIST], {
     message: 'Fact type is required',
   }),
   options: z.array(z.string()).optional(),

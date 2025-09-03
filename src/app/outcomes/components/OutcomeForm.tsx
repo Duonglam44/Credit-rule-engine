@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Outcome } from "@/schemas/outcome"
+import JSONTooltip from './JSONTooltip'
 
 interface OutcomeFormProps {
   outcome?: Outcome | null
@@ -96,7 +97,10 @@ export function OutcomeForm({ outcome, onSaved, onCancel }: OutcomeFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="params">Parameters (JSON)</Label>
+            <div className="flex justify-between items-center gap-2">
+              <Label htmlFor="params">Parameters (JSON)</Label>
+              <JSONTooltip />
+            </div>
             <Textarea
               id="params"
               placeholder='{"message": "Credit approved", "limit": 10000}'

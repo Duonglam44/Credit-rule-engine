@@ -12,11 +12,19 @@ type RuleInputNumberProps = {
 const RuleInputNumber = (props: RuleInputNumberProps) => {
   const { condition, index, updateCondition } = props
 
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    if (value === '' || isNaN(parseFloat(value))) {
+      updateCondition(index, 'value', 0)
+    }
+  }
+
   return (
     <Input
       type="number"
-      value={Number(condition.value) || 0}
-      onChange={(e) => updateCondition(index, 'value', parseFloat(e.target.value) || 0)}
+      value={condition.value as number}
+      onChange={(e) => updateCondition(index, 'value', parseFloat(e.target.value))}
+      onBlur={handleBlur}
       placeholder="Number"
     />
   )

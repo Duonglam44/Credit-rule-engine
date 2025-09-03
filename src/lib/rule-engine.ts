@@ -3,6 +3,7 @@ import { Engine, Rule } from 'json-rules-engine'
 import { supabase } from './supabase'
 import { Fact, FactType, validateFactValue } from '@/schemas/fact'
 import { TestCase } from '@/schemas/testCase'
+import { Operator } from '@/schemas/fact'
 
 export class RuleEngineService {
   private engine: Engine
@@ -112,10 +113,20 @@ export class RuleEngineService {
 
       const results = await engine.run(factInputs)
 
+      const hasTriggeredEvents = results.events && results.events.length > 0
+
+      let errorMessage = null
+      if (!hasTriggeredEvents) {
+        errorMessage = await this.analyzeRuleFailure(ruleData, factInputs)
+      }
+
       return {
-        success: true,
+        success: hasTriggeredEvents,
         events: results.events,
-        facts: factInputs
+        facts: factInputs,
+        ...(hasTriggeredEvents ? {} : { 
+          error: errorMessage || 'Rule conditions were not met - no events triggered' 
+        })
       }
     } catch (error) {
       return {
@@ -200,8 +211,7 @@ export class RuleEngineService {
   async getFactsForRule(ruleId: string): Promise<Fact[]> {
     const ruleData = await this.loadRule(ruleId)
     const allFacts = await this.loadFacts()
-    
-    // Extract fact names from rule conditions
+
     const factNames = this.extractFactNamesFromConditions(ruleData.json_conditions)
     
     return allFacts.filter(fact => factNames.includes(fact.name))
@@ -237,6 +247,128 @@ export class RuleEngineService {
     }
     
     return [...new Set(factNames)]
+  }
+
+  private async analyzeRuleFailure(ruleData: any, factInputs: Record<string, unknown>): Promise<string> {
+    try {
+      const conditions = ruleData.json_conditions as any
+      const failureReasons: string[] = []
+
+      if (conditions.all && Array.isArray(conditions.all)) {
+        for (const condition of conditions.all) {
+          const reason = this.evaluateCondition(condition, factInputs)
+          if (reason) {
+            failureReasons.push(reason)
+          }
+        }
+      }
+
+      if (conditions.any && Array.isArray(conditions.any)) {
+        const anyReasons: string[] = []
+        for (const condition of conditions.any) {
+          const reason = this.evaluateCondition(condition, factInputs)
+          if (reason) {
+            anyReasons.push(reason)
+          }
+        }
+        
+        if (anyReasons.length === conditions.any.length) {
+          failureReasons.push(`None of the 'any' conditions were met: ${anyReasons.join(', ')}`)
+        }
+      }
+
+      if (failureReasons.length > 0) {
+        return `Rule failed because: ${failureReasons.join(' AND ')}`
+      }
+
+      return 'Rule conditions were not met'
+    } catch {
+      return 'Failed to analyze rule conditions'
+    }
+  }
+
+  private evaluateCondition(condition: any, factInputs: Record<string, unknown>): string | null {
+    if (!condition.fact || !condition.operator) {
+      return null
+    }
+
+    const factName = condition.fact
+    const operator = condition.operator
+    const expectedValue = condition.value
+    const actualValue = factInputs[factName]
+
+    if (!(factName in factInputs)) {
+      return `Missing fact '${factName}'`
+    }
+
+    switch (operator) {
+      case Operator.EQUAL:
+        if (actualValue !== expectedValue) {
+          return `'${factName}' is ${actualValue}, expected ${expectedValue}`
+        }
+        break
+      case Operator.NOT_EQUAL:
+        if (actualValue === expectedValue) {
+          return `'${factName}' is ${actualValue}, expected not to be ${expectedValue}`
+        }
+        break
+      case Operator.GREATER_THAN:
+        if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+          if (actualValue <= expectedValue) {
+            return `'${factName}' is ${actualValue}, expected > ${expectedValue}`
+          }
+        }
+        break
+      case Operator.GREATER_THAN_INCLUSIVE:
+        if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+          if (actualValue < expectedValue) {
+            return `'${factName}' is ${actualValue}, expected >= ${expectedValue}`
+          }
+        }
+        break
+      case Operator.LESS_THAN:
+        if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+          if (actualValue >= expectedValue) {
+            return `'${factName}' is ${actualValue}, expected < ${expectedValue}`
+          }
+        }
+        break
+      case Operator.LESS_THAN_INCLUSIVE:
+        if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+          if (actualValue > expectedValue) {
+            return `'${factName}' is ${actualValue}, expected <= ${expectedValue}`
+          }
+        }
+        break
+      case Operator.IN:
+        if (Array.isArray(expectedValue) && !expectedValue.includes(actualValue)) {
+          return `'${factName}' is ${actualValue}, expected one of [${expectedValue.join(', ')}]`
+        }
+        break
+      case Operator.NOT_IN:
+        if (Array.isArray(expectedValue) && expectedValue.includes(actualValue)) {
+          return `'${factName}' is ${actualValue}, expected not to be one of [${expectedValue.join(', ')}]`
+        }
+        break
+      case Operator.CONTAINS:
+        if (typeof actualValue === 'string' && typeof expectedValue === 'string') {
+          if (!actualValue.includes(expectedValue)) {
+            return `'${factName}' is '${actualValue}', expected to contain '${expectedValue}'`
+          }
+        }
+        break
+      case Operator.DOES_NOT_CONTAIN:
+        if (typeof actualValue === 'string' && typeof expectedValue === 'string') {
+          if (actualValue.includes(expectedValue)) {
+            return `'${factName}' is '${actualValue}', expected not to contain '${expectedValue}'`
+          }
+        }
+        break
+      default:
+        return `'${factName}' failed condition with operator '${operator}'`
+    }
+
+    return null
   }
 }
 

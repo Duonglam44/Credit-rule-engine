@@ -1,7 +1,8 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@radix-ui/react-select'
 import React from 'react'
 import { Json } from "@/lib/database.types"
 import { Condition } from '@/types/rules'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 
 type RuleInputBooleanProps = {
   condition: Condition

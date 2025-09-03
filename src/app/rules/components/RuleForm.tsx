@@ -45,7 +45,6 @@ export function RuleForm({ rule, onSaved, onCancel }: RuleFormProps) {
     fetchOutcomes()
 
     if (rule?.json_conditions) {
-      // Parse existing conditions
       const conditionsData = rule.json_conditions as { all?: Condition[], any?: Condition[] }
       if (conditionsData.all) {
         setConditions(conditionsData.all)
@@ -92,6 +91,14 @@ export function RuleForm({ rule, onSaved, onCancel }: RuleFormProps) {
   const updateCondition = (index: number, field: keyof Condition, value: unknown) => {
     const updated = [...conditions]
     updated[index] = { ...updated[index], [field]: value }
+    
+    if (field === 'fact') {
+      updated[index] = { ...updated[index], operator: '', value: '' }
+    }
+    else if (field === 'operator') {
+      updated[index] = { ...updated[index], value: '' }
+    }
+    
     setConditions(updated)
   }
 
@@ -108,9 +115,20 @@ export function RuleForm({ rule, onSaved, onCancel }: RuleFormProps) {
         throw new Error("At least one condition is required")
       }
 
-      for (const condition of conditions) {
-        if (!condition.fact || !condition.operator || condition.value === '') {
-          throw new Error("All condition fields are required")
+      // Validate each condition
+      for (let i = 0; i < conditions.length; i++) {
+        const condition = conditions[i]
+        
+        if (!condition.fact || condition.fact.trim() === '') {
+          throw new Error(`Condition ${i + 1}: Please select a fact`)
+        }
+        
+        if (!condition.operator || condition.operator.trim() === '') {
+          throw new Error(`Condition ${i + 1}: Please select an operator`)
+        }
+        
+        if (condition.value === '' || condition.value === null || condition.value === undefined) {
+          throw new Error(`Condition ${i + 1}: Please provide a value`)
         }
       }
 
@@ -205,60 +223,80 @@ export function RuleForm({ rule, onSaved, onCancel }: RuleFormProps) {
             </div>
 
             {conditions.map((condition, index) => (
-              <div key={index} className="flex gap-2 items-center">
-                <Select
-                  value={condition.fact}
-                  onValueChange={(value) => updateCondition(index, 'fact', value)}
-                >
-                  <SelectTrigger className="w-[30%] max-w-[30%]">
-                    <SelectValue placeholder="Fact" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {facts.map((fact) => (
-                      <SelectItem key={fact.name} value={fact.name}>
-                        <div className="flex items-center gap-2">
-                          {fact.name}
-                          <Badge variant="outline" className="text-xs">
-                            {fact.type}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={condition.operator}
-                  onValueChange={(value) => updateCondition(index, 'operator', value)}
-                  disabled={!condition.fact}
-                >
-                  <SelectTrigger className="w-[30%] max-w-[30%]">
-                    <SelectValue placeholder="Operator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {condition.fact && getFactByName(condition.fact) &&
-                      getOperatorsForFactType(getFactByName(condition.fact)!.type).map((operator) => (
-                        <SelectItem key={operator} value={operator}>
-                          {operator}
+              <div key={index} className="space-y-2">
+                <div className="flex gap-2 items-center">
+                  <Select
+                    value={condition.fact}
+                    onValueChange={(value) => updateCondition(index, 'fact', value)}
+                  >
+                    <SelectTrigger className={`w-[30%] max-w-[30%] ${!condition.fact ? 'border-red-300' : ''}`}>
+                      <SelectValue placeholder="Select fact" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {facts.map((fact) => (
+                        <SelectItem key={fact.name} value={fact.name}>
+                          <div className="flex items-center gap-2">
+                            {fact.name}
+                            <Badge variant="outline" className="text-xs">
+                              {fact.type}
+                            </Badge>
+                          </div>
                         </SelectItem>
-                      ))
-                    }
-                  </SelectContent>
-                </Select>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <div className="w-[30%]">
-                  <RuleInput fact={getFactByName(condition.fact)!} condition={condition} index={index} updateCondition={updateCondition} />
+                  <Select
+                    value={condition.operator}
+                    onValueChange={(value) => updateCondition(index, 'operator', value)}
+                    disabled={!condition.fact}
+                  >
+                    <SelectTrigger className={`w-[30%] max-w-[30%] ${condition.fact && !condition.operator ? 'border-red-300' : ''}`}>
+                      <SelectValue placeholder="Select operator" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {condition.fact && getFactByName(condition.fact) &&
+                        getOperatorsForFactType(getFactByName(condition.fact)!.type).map((operator) => (
+                          <SelectItem key={operator} value={operator}>
+                            {operator}
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+
+                  <div className="w-[30%]">
+                    {condition.fact && getFactByName(condition.fact) ? (
+                      <RuleInput 
+                        fact={getFactByName(condition.fact)!} 
+                        condition={condition} 
+                        index={index} 
+                        updateCondition={updateCondition} 
+                      />
+                    ) : (
+                      <div className="h-10 border border-dashed border-gray-300 rounded-md flex items-center justify-center text-sm text-muted-foreground">
+                        Select fact first
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    className="w-[10%]"
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => removeCondition(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-
-                <Button
-                  className="w-[10%]"
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                  onClick={() => removeCondition(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                
+                {/* Validation hints */}
+                <div className="text-xs text-muted-foreground ml-1">
+                  {!condition.fact && "Please select a fact"}
+                  {condition.fact && !condition.operator && "Please select an operator"}
+                  {condition.fact && condition.operator && (condition.value === '' || condition.value === null || condition.value === undefined) && "Please provide a value"}
+                </div>
               </div>
             ))}
 
@@ -266,6 +304,12 @@ export function RuleForm({ rule, onSaved, onCancel }: RuleFormProps) {
               <Plus className="h-4 w-4 mr-2" />
               Add Condition
             </Button>
+
+            {conditions.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Add at least one condition to create a rule
+              </p>
+            )}
           </div>
 
           <div className="flex space-x-2 pt-4">
@@ -294,10 +338,10 @@ function RuleInput(props: RuleInputProps) {
   const { fact, index, updateCondition, condition } = props
 
   const ruleInputs: Record<string, JSX.Element> = {
-    [FactType.NUMBER]: <RuleInputNumber index={index} updateCondition={updateCondition} condition={condition} />,
-    [FactType.BOOLEAN]: <RuleInputBoolean index={index} updateCondition={updateCondition} condition={condition} />,
-    [FactType.LIST]: <RuleInputList index={index} updateCondition={updateCondition} condition={condition} fact={fact} />,
-    [FactType.STRING]: <RuleInputText index={index} updateCondition={updateCondition} condition={condition} />,
+    [FactType.NUMBER]: <RuleInputNumber key="fact-input-number" index={index} updateCondition={updateCondition} condition={condition} />,
+    [FactType.BOOLEAN]: <RuleInputBoolean key="fact-input-boolean" index={index} updateCondition={updateCondition} condition={condition} />,
+    [FactType.LIST]: <RuleInputList key="fact-input-list" index={index} updateCondition={updateCondition} condition={condition} fact={fact} />,
+    [FactType.STRING]: <RuleInputText key="fact-input-string" index={index} updateCondition={updateCondition} condition={condition} />,
   }
 
   return ruleInputs[fact?.type || FactType.STRING]

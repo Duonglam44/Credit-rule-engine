@@ -11,11 +11,19 @@ type TestEngineNumberProps = {
 const TestEngineNumber = (props: TestEngineNumberProps) => {
   const { fact, factInputs, updateFactInput } = props
 
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    if (value === '' || isNaN(parseFloat(value))) {
+      updateFactInput(fact.name, 0)
+    }
+  }
+
   return (
     <Input
       type="number"
-      value={factInputs[fact.name] as number || 0}
-      onChange={(e) => updateFactInput(fact.name, parseFloat(e.target.value) || 0)}
+      value={factInputs[fact.name] as number}
+      onChange={(e) => updateFactInput(fact.name, parseFloat(e.target.value))}
+      onBlur={handleBlur}
     />
   )
 }

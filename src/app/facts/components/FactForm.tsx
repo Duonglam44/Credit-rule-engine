@@ -45,7 +45,7 @@ export function FactForm({ fact, onSaved, onCancel }: FactFormProps) {
 
       const payload = {
         ...data,
-        options: watchedType === "list" ? options : undefined,
+        options: watchedType === FactType.LIST ? options : undefined,
       }
 
       const url = fact?.id ? `/api/facts/${fact.id}` : "/api/facts"
@@ -74,7 +74,9 @@ export function FactForm({ fact, onSaved, onCancel }: FactFormProps) {
 
   const addOption = () => {
     if (newOption.trim() && !options.includes(newOption.trim())) {
-      setOptions([...options, newOption.trim()])
+      const newOptions = [...options, newOption.trim()]
+      form.setValue("options", newOptions)
+      setOptions(newOptions)
       setNewOption("")
     }
   }
@@ -134,7 +136,6 @@ export function FactForm({ fact, onSaved, onCancel }: FactFormProps) {
                 <SelectItem value="number">Number</SelectItem>
                 <SelectItem value="boolean">Boolean</SelectItem>
                 <SelectItem value="list">List</SelectItem>
-                <SelectItem value="function">Function</SelectItem>
               </SelectContent>
             </Select>
             {form.formState.errors.type && (
@@ -142,7 +143,7 @@ export function FactForm({ fact, onSaved, onCancel }: FactFormProps) {
             )}
           </div>
 
-          {watchedType === "list" && (
+          {watchedType === FactType.LIST && (
             <div className="space-y-2">
               <Label>Options</Label>
               <div className="flex space-x-2">
@@ -176,6 +177,9 @@ export function FactForm({ fact, onSaved, onCancel }: FactFormProps) {
                     </Badge>
                   ))}
                 </div>
+              )}
+              {watchedType === FactType.LIST && options.length === 0 && (
+                <p className="text-sm text-red-600">Options are required for list type facts</p>
               )}
               {form.formState.errors.options && (
                 <p className="text-sm text-red-600">{form.formState.errors.options.message}</p>

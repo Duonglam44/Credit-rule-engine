@@ -6,14 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlayCircle, Save, RotateCcw } from "lucide-react"
 import { Fact, FactType } from "@/schemas/fact"
 import TestEngineNumber from './components/TestEngineNumber'
 import TestEngineList from './components/TestEngineList'
 import TestEngineText from './components/TestEngineText'
 import TestEngineBoolean from './components/TestEngineBoolean'
+import TestCaseHistory from './components/TestCaseHistory'
 import { TestResult, TestRule } from '@/types/test'
 import { Json } from '@/lib/database.types'
 
@@ -24,6 +26,7 @@ export default function TestEnginePage() {
   const [factInputs, setFactInputs] = useState<Record<string, unknown>>({})
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [factsLoading, setFactsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,6 +55,8 @@ export default function TestEnginePage() {
 
   const fetchRuleFacts = useCallback(async (ruleId: string) => {
     try {
+      setFactsLoading(true)
+      setError(null)
       const response = await fetch(`/api/engine/facts/${ruleId}`)
       if (!response.ok) {
         throw new Error('Failed to fetch rule facts')
@@ -73,6 +78,8 @@ export default function TestEnginePage() {
       setFactInputs(initialInputs)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setFactsLoading(false)
     }
   }, [])
 
@@ -171,7 +178,7 @@ export default function TestEnginePage() {
       <Tabs defaultValue="test" className="space-y-6">
         <TabsList>
           <TabsTrigger value="test">Run Test</TabsTrigger>
-          <TabsTrigger value="results">View Results</TabsTrigger>
+          <TabsTrigger value="history">Test History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="test" className="space-y-6">
@@ -198,7 +205,7 @@ export default function TestEnginePage() {
             </CardContent>
           </Card>
 
-          {selectedRuleId && ruleFacts.length > 0 && (
+          {selectedRuleId && (
             <Card>
               <CardHeader>
                 <CardTitle>Configure Test Data</CardTitle>
@@ -207,35 +214,46 @@ export default function TestEnginePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {ruleFacts.map((fact) => (
-                  <div key={fact.name} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={fact.name}>{fact.name}</Label>
-                      <Badge variant="outline">{fact.type}</Badge>
-                    </div>
-                    {fact.description && (
-                      <p className="text-sm text-muted-foreground">{fact.description}</p>
-                    )}
-                    <EngineFactInput fact={fact} factInputs={factInputs} onChange={updateFactInput} />
+                {factsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
+                    <span className="ml-2 text-muted-foreground">Loading facts...</span>
                   </div>
-                ))}
+                ) : ruleFacts.length > 0 ? (
+                  <>
+                    {ruleFacts.map((fact) => (
+                      <div key={fact.name} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={fact.name}>{fact.name}</Label>
+                          <Badge variant="outline">{fact.type}</Badge>
+                        </div>
+                        {fact.description && (
+                          <p className="text-sm text-muted-foreground">{fact.description}</p>
+                        )}
+                        <EngineFactInput fact={fact} factInputs={factInputs} onChange={updateFactInput} />
+                      </div>
+                    ))}
 
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={runTest} disabled={loading}>
-                    <PlayCircle className="h-4 w-4 mr-2" />
-                    {loading ? "Running..." : "Run Test"}
-                  </Button>
-                  <Button variant="outline" onClick={resetForm}>
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Reset
-                  </Button>
-                </div>
+                    <div className="flex gap-2 pt-4">
+                      <Button onClick={runTest} disabled={loading}>
+                        <PlayCircle className="h-4 w-4 mr-2" />
+                        {loading ? "Running..." : "Run Test"}
+                      </Button>
+                      <Button variant="outline" onClick={resetForm}>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reset
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No facts found for this rule
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
-        </TabsContent>
 
-        <TabsContent value="results">
           {testResult && (
             <Card>
               <CardHeader>
@@ -255,9 +273,9 @@ export default function TestEnginePage() {
                   <div className="space-y-2">
                     <h3 className="font-medium">Triggered Events:</h3>
                     {testResult.events.map((event, index) => (
-                      <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                      <div key={index} className="bg-muted p-3 rounded-lg">
                         <div className="font-medium text-sm">{event.type}</div>
-                        <pre className="text-xs mt-1 text-gray-600">
+                        <pre className="text-xs mt-1 text-muted-foreground font-mono">
                           {JSON.stringify(event.params, null, 2)}
                         </pre>
                       </div>
@@ -273,7 +291,7 @@ export default function TestEnginePage() {
 
                 <div className="space-y-2">
                   <h3 className="font-medium">Input Facts:</h3>
-                  <pre className="text-xs bg-gray-50 p-3 rounded-lg overflow-auto">
+                  <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto font-mono">
                     {JSON.stringify(testResult.facts, null, 2)}
                   </pre>
                 </div>
@@ -287,6 +305,10 @@ export default function TestEnginePage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="history">
+          <TestCaseHistory onError={setError} />
         </TabsContent>
       </Tabs>
     </div>
@@ -303,10 +325,10 @@ function EngineFactInput(props: EngineFactInputProps) {
   const { fact, factInputs, onChange } = props
 
   const engineFactInputs: Record<string, JSX.Element> = {
-    [FactType.NUMBER]: <TestEngineNumber fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
-    [FactType.STRING]: <TestEngineText fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
-    [FactType.BOOLEAN]: <TestEngineBoolean fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
-    [FactType.LIST]: <TestEngineList fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
+    [FactType.NUMBER]: <TestEngineNumber key="fact-type-number" fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
+    [FactType.STRING]: <TestEngineText key="fact-type-string" fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
+    [FactType.BOOLEAN]: <TestEngineBoolean key="fact-type-boolean" fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
+    [FactType.LIST]: <TestEngineList key="fact-type-list" fact={fact} factInputs={factInputs} updateFactInput={onChange} />,
   }
 
   return engineFactInputs[fact?.type || FactType.STRING]
